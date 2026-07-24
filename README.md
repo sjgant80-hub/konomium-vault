@@ -1,5 +1,7 @@
 # konomium-vault
 
+**Live:** [sjgant80-hub.github.io/konomium-vault](https://sjgant80-hub.github.io/konomium-vault/)
+
 Offline-first, AES-GCM-256 encrypted sovereign store. Your data on your device, encrypted at rest.
 The browser holds the ciphertext; you hold the key.
 
