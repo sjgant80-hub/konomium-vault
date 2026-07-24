@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Konomium · Sovereign Vault</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0a0a0f;--surface:#14141f;--border:#2a2a3a;--text:#e0e0e8;--dim:#888;--accent:#6c8cff;--green:#4caf50;--red:#e74c3c;--gold:#f0c040;font-family:system-ui,-apple-system,sans-serif}
+body{background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:1rem}
+h1{font-size:1.5rem;margin-bottom:.5rem;letter-spacing:.05em}
+h2{font-size:1rem;color:var(--dim);margin-bottom:1rem;font-weight:400}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:.5rem;padding:1.25rem;width:100%;max-width:40rem;margin-bottom:1rem}
+.card h3{font-size:.9rem;text-transform:uppercase;letter-spacing:.08em;color:var(--accent);margin-bottom:.75rem}
+label{display:block;font-size:.8rem;color:var(--dim);margin-bottom:.3rem}
+input,select,textarea{width:100%;padding:.5rem;background:var(--bg);border:1px solid var(--border);border-radius:.3rem;color:var(--text);font-size:.9rem;margin-bottom:.5rem}
+input:focus,textarea:focus{outline:none;border-color:var(--accent)}
+button{padding:.5rem 1rem;background:var(--accent);color:#fff;border:none;border-radius:.3rem;cursor:pointer;font-size:.85rem;margin-right:.5rem;margin-bottom:.5rem}
+button:hover{opacity:.85}
+button.secondary{background:transparent;border:1px solid var(--border);color:var(--text)}
+button.danger{background:var(--red)}
+.drop-zone{border:2px dashed var(--border);border-radius:.5rem;padding:2rem;text-align:center;color:var(--dim);cursor:pointer;transition:border-color .2s}
+.drop-zone.over{border-color:var(--accent);color:var(--text)}
+.status{padding:.5rem;border-radius:.3rem;font-size:.8rem;margin-top:.5rem}
+.status.ok{background:#1a2e1a;color:var(--green)}
+.status.err{background:#2e1a1a;color:var(--red)}
+table{width:100%;border-collapse:collapse;font-size:.8rem;margin-top:.5rem}
+th,td{padding:.4rem .5rem;border-bottom:1px solid var(--border);text-align:left}
+th{color:var(--dim);font-weight:600;text-transform:uppercase;font-size:.7rem;letter-spacing:.05em}
+td.amount{text-align:right;font-variant-numeric:tabular-nums}
+.positive{color:var(--green)}.negative{color:var(--red)}
+.vat-boxes{display:grid;grid-template-columns:repeat(auto-fit,minmax(8rem,1fr));gap:.5rem;margin-top:.5rem}
+.vat-box{background:var(--bg);border:1px solid var(--border);border-radius:.3rem;padding:.5rem;text-align:center}
+.vat-box .label{font-size:.7rem;color:var(--dim);text-transform:uppercase}
+.vat-box .value{font-size:1.1rem;font-weight:600;margin-top:.25rem}
+.hidden{display:none}
+#app{width:100%;max-width:40rem}
+.summary-row{display:flex;justify-content:space-between;padding:.3rem 0;font-size:.85rem}
+.summary-row .k{color:var(--dim)}
+.badge{display:inline-block;padding:.15rem .5rem;border-radius:1rem;font-size:.7rem;font-weight:600;text-transform:uppercase}
+.badge.open{background:#1a2e1a;color:var(--green)}.badge.closed{background:#2e1a1a;color:var(--red)}
+.qr-box{font-family:monospace;font-size:.75rem;word-break:break-all;background:var(--bg);padding:.5rem;border-radius:.3rem;border:1px solid var(--border);margin:.5rem 0}
+footer{margin-top:2rem;font-size:.7rem;color:var(--dim);text-align:center;padding:1rem}
+</style>
+</head>
+<body>
+
+<h1>Konomium</h1>
+<h2>Sovereign Vault · offline-first · encrypted · yours</h2>
+
+<div id="app">
+  <!-- UNLOCK -->
+  <div id="unlock-view" class="card">
+    <h3>Unlock Your Vault</h3>
+    <label>Master Seed</label>
+    <input type="password" id="seed-input" placeholder="your secret passphrase (min 8 chars)" autocomplete="off">
+    <button onclick="unlock()">Open Vault</button>
+    <div id="unlock-status"></div>
+  </div>
+
+  <!-- DASHBOARD (hidden until unlocked) -->
+  <div id="dashboard" class="hidden">
+    <div class="card">
+      <h3>Vault <span class="badge open" id="vault-badge">open</span></h3>
+      <div id="vault-summary"></div>
+      <button class="secondary" onclick="refreshSummary()">Refresh</button>
+      <button class="secondary" onclick="exportVault()">Export Backup</button>
+      <button class="danger" onclick="lockVault()">Lock</button>
+    </div>
+
+    <!-- INGEST -->
+    <div class="card">
+      <h3>Import Transactions</h3>
+      <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
+        Drop a CSV here or click to browse
+      </div>
+      <input type="file" id="file-input" accept=".csv" class="hidden">
+      <div id="ingest-status"></div>
+      <div id="ingest-preview"></div>
+    </div>
+
+    <!-- TRANSACTIONS -->
+    <div class="card">
+      <h3>Transactions</h3>
+      <div id="tx-list"></div>
+    </div>
+
+    <!-- VAT RETURN -->
+    <div class="card">
+      <h3>VAT Return</h3>
+      <div style="display:flex;gap:.5rem;align-items:end">
+        <div style="flex:1"><label>From</label><input type="date" id="vat-from" value="2026-01-01"></div>
+        <div style="flex:1"><label>To</label><input type="date" id="vat-to" value="2026-03-31"></div>
+        <button onclick="computeVAT()">Compute</button>
+      </div>
+      <div id="vat-result"></div>
+    </div>
+
+    <!-- SYNC -->
+    <div class="card">
+      <h3>Peer Sync</h3>
+      <p style="font-size:.8rem;color:var(--dim);margin-bottom:.5rem">
+        Sync with another device. No cloud. No server. Peer-to-peer.
+      </p>
+      <button onclick="initSync()">Generate Sync Token</button>
+      <button class="secondary" onclick="showJoinSync()">Join Sync</button>
+      <div id="sync-area"></div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  Konomium · your data, your device, your key.<br>
+  AES-GCM 256 · zero dependencies · no cloud · no tracking.<br>
+  This tool does not make you exempt from GDPR or any law.<br>
+  It makes your obligations cheaper to meet.
+</footer>
+
+<script type="module">
+import { KonomiumNode, memoryAdapter } from './node.mjs';
+import { ingest } from './ingest.mjs';
+
+let node = null;
+
+window.unlock = async function() {
+  const seed = document.getElementById('seed-input').value;
+  const status = document.getElementById('unlock-status');
+  try {
+    node = await new KonomiumNode().open(seed);
+    status.className = 'status ok';
+    status.textContent = 'Vault unlocked.';
+    document.getElementById('unlock-view').classList.add('hidden');
+    document.getElementById('dashboard').classList.remove('hidden');
+    refreshSummary();
+    loadTransactions();
+  } catch(e) {
+    status.className = 'status err';
+    status.textContent = e.message;
+  }
+};
+
+window.lockVault = function() {
+  node = null;
+  document.getElementById('dashboard').classList.add('hidden');
+  document.getElementById('unlock-view').classList.remove('hidden');
+  document.getElementById('seed-input').value = '';
+  document.getElementById('unlock-status').textContent = '';
+};
+
+window.refreshSummary = async function() {
+  if (!node) return;
+  const s = await node.summary();
+  document.getElementById('vault-summary').innerHTML = `
+    <div class="summary-row"><span class="k">Transactions</span><span>${s.transactions}</span></div>
+    <div class="summary-row"><span class="k">Batches</span><span>${s.batches}</span></div>
+    <div class="summary-row"><span class="k">Other records</span><span>${s.otherRecords}</span></div>
+    <div class="summary-row"><span class="k">Total</span><span>${s.totalRecords}</span></div>
+  `;
+};
+
+window.exportVault = async function() {
+  if (!node) return;
+  const blob = await node.export();
+  const json = JSON.stringify(blob, null, 2);
+  const file = new Blob([json], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(file);
+  a.download = `konomium-vault-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+};
+
+// ── Ingest ────────────────────────────────────────────
+const dropZone = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('over'));
+dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('over'); handleFile(e.dataTransfer.files[0]); });
+fileInput.addEventListener('change', e => { if (e.target.files[0]) handleFile(e.target.files[0]); });
+
+async function handleFile(file) {
+  const text = await file.text();
+  const preview = ingest(text);
+  const status = document.getElementById('ingest-status');
+  const previewEl = document.getElementById('ingest-preview');
+
+  previewEl.innerHTML = `
+    <p style="font-size:.8rem;margin-top:.5rem">
+      Format: <strong>${preview.format || 'unknown'}</strong> ·
+      ${preview.transactions.length} transactions ·
+      Income: £${preview.summary.income.toFixed(2)} ·
+      Expense: £${Math.abs(preview.summary.expense).toFixed(2)}
+    </p>
+    <button onclick="confirmIngest()">Import to Vault</button>
+  `;
+
+  window._pendingCSV = text;
+  status.className = 'status ok';
+  status.textContent = `Parsed ${preview.transactions.length} transactions from ${file.name}`;
+}
+
+window.confirmIngest = async function() {
+  if (!node || !window._pendingCSV) return;
+  const batchId = `import-${Date.now()}`;
+  const manifest = await node.ingestCSV(window._pendingCSV, batchId);
+  const status = document.getElementById('ingest-status');
+  status.className = 'status ok';
+  status.textContent = `Imported ${manifest.count} transactions (batch: ${batchId})`;
+  document.getElementById('ingest-preview').innerHTML = '';
+  window._pendingCSV = null;
+  refreshSummary();
+  loadTransactions();
+};
+
+async function loadTransactions() {
+  if (!node) return;
+  const keys = await node.keys();
+  const txKeys = keys.filter(k => k.startsWith('tx-')).slice(-50);
+  if (txKeys.length === 0) {
+    document.getElementById('tx-list').innerHTML = '<p style="color:var(--dim);font-size:.8rem">No transactions yet. Import a CSV above.</p>';
+    return;
+  }
+  const rows = [];
+  for (const k of txKeys) {
+    const tx = await node.get(k);
+    if (tx) rows.push(tx);
+  }
+  rows.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+
+  let html = '<table><thead><tr><th>Date</th><th>Description</th><th style="text-align:right">Amount</th></tr></thead><tbody>';
+  for (const tx of rows) {
+    const cls = tx.amount >= 0 ? 'positive' : 'negative';
+    html += `<tr><td>${tx.date || '—'}</td><td>${esc(tx.description || '—')}</td><td class="amount ${cls}">£${tx.amount.toFixed(2)}</td></tr>`;
+  }
+  html += '</tbody></table>';
+  if (keys.filter(k => k.startsWith('tx-')).length > 50) {
+    html += `<p style="font-size:.75rem;color:var(--dim);margin-top:.3rem">Showing last 50 of ${keys.filter(k => k.startsWith('tx-')).length}</p>`;
+  }
+  document.getElementById('tx-list').innerHTML = html;
+}
+
+// ── VAT ───────────────────────────────────────────────
+window.computeVAT = async function() {
+  if (!node) return;
+  const from = document.getElementById('vat-from').value;
+  const to = document.getElementById('vat-to').value;
+  const result = await node.vatReturn({ from, to });
+  const b = result.vatReturn.boxes;
+
+  document.getElementById('vat-result').innerHTML = `
+    <div class="vat-boxes">
+      <div class="vat-box"><div class="label">Box 1 · VAT due</div><div class="value">£${b.box1.toFixed(2)}</div></div>
+      <div class="vat-box"><div class="label">Box 4 · Reclaimed</div><div class="value">£${b.box4.toFixed(2)}</div></div>
+      <div class="vat-box"><div class="label">Box 5 · Net</div><div class="value ${result.vatReturn.direction === 'owe' ? 'negative' : 'positive'}">£${b.box5.toFixed(2)}</div></div>
+      <div class="vat-box"><div class="label">Box 6 · Sales ex VAT</div><div class="value">£${b.box6}</div></div>
+      <div class="vat-box"><div class="label">Box 7 · Purchases ex VAT</div><div class="value">£${b.box7}</div></div>
+    </div>
+    <p style="font-size:.8rem;margin-top:.5rem;color:var(--dim)">
+      ${result.vatReturn.direction === 'owe' ? 'You owe HMRC' : 'HMRC owes you'} £${b.box5.toFixed(2)} ·
+      ${result.vatReturn.lineCount} transactions in period
+    </p>
+  `;
+};
+
+// ── Sync ──────────────────────────────────────────────
+window.initSync = function() {
+  if (!node) return;
+  const { token } = node.initiateSync();
+  document.getElementById('sync-area').innerHTML = `
+    <p style="font-size:.8rem;margin-top:.5rem">Share this token with the other device:</p>
+    <div class="qr-box">${esc(token)}</div>
+    <button class="secondary" onclick="navigator.clipboard.writeText('${token}')">Copy Token</button>
+  `;
+};
+
+window.showJoinSync = function() {
+  document.getElementById('sync-area').innerHTML = `
+    <label style="margin-top:.5rem">Paste sync token</label>
+    <input type="text" id="join-token" placeholder="paste the token from the other device">
+    <button onclick="joinSync()">Connect</button>
+  `;
+};
+
+window.joinSync = async function() {
+  const token = document.getElementById('join-token').value;
+  if (!token || !node) return;
+  try {
+    const session = await node.joinSync(token);
+    document.getElementById('sync-area').innerHTML = `
+      <div class="status ok">Session established. WebRTC transport would connect here in production.</div>
+    `;
+  } catch(e) {
+    document.getElementById('sync-area').innerHTML = `<div class="status err">${esc(e.message)}</div>`;
+  }
+};
+
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+</script>
+</body>
+</html>
