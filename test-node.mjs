@@ -37,13 +37,13 @@ test('previewCSV parses without storing anything', async () => {
   assert.equal(preview.transactions.length, 4);
 });
 
-test('vatReturn computes boxes from ingested data', async () => {
+test('vatReturn computes boxes from ingested data (conservative: no auto-reclaim)', async () => {
   const node = await new KonomiumNode().open(SEED);
   await node.ingestCSV(CSV, 'q1');
   const period = { from: '2026-01-01', to: '2026-03-31' };
   const result = await node.vatReturn(period);
-  assert.ok(result.vatReturn.boxes.box1 > 0, 'sales VAT computed');
-  assert.ok(result.vatReturn.boxes.box4 > 0, 'input VAT reclaimed');
+  assert.ok(result.vatReturn.boxes.box1 > 0, 'output VAT on sales is computed');
+  assert.equal(result.vatReturn.boxes.box4, 0, 'purchases are NOT auto-reclaimed (box4 = 0 until user classifies)');
   assert.ok(result.hmrcPayload.vatDueSales > 0);
 });
 

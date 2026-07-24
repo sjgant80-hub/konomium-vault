@@ -207,19 +207,26 @@ async function handleFile(file) {
   const status = document.getElementById('ingest-status');
   const previewEl = document.getElementById('ingest-preview');
 
+  const errs = preview.errors ? preview.errors.length : 0;
+  const warns = preview.warnings ? preview.warnings.length : 0;
+  const notes = [];
+  if (errs) notes.push(`<span style="color:var(--red)">${errs} row(s) skipped (unreadable amount)</span>`);
+  if (warns) notes.push(`<span style="color:var(--gold)">${warns} row(s) with no recognisable date</span>`);
+
   previewEl.innerHTML = `
     <p style="font-size:.8rem;margin-top:.5rem">
-      Format: <strong>${preview.format || 'unknown'}</strong> ·
+      Format: <strong>${esc(preview.format || 'unknown')}</strong> ·
       ${preview.transactions.length} transactions ·
       Income: £${preview.summary.income.toFixed(2)} ·
       Expense: £${Math.abs(preview.summary.expense).toFixed(2)}
     </p>
+    ${notes.length ? `<p style="font-size:.78rem;margin:.25rem 0">${notes.join(' · ')}</p>` : ''}
     <button onclick="confirmIngest()">Import to Vault</button>
   `;
 
   window._pendingCSV = text;
   status.className = 'status ok';
-  status.textContent = `Parsed ${preview.transactions.length} transactions from ${file.name}`;
+  status.textContent = `Parsed ${preview.transactions.length} transactions from ${esc(file.name)}`;
 }
 
 window.confirmIngest = async function() {
@@ -253,7 +260,7 @@ async function loadTransactions() {
   let html = '<table><thead><tr><th>Date</th><th>Description</th><th style="text-align:right">Amount</th></tr></thead><tbody>';
   for (const tx of rows) {
     const cls = tx.amount >= 0 ? 'positive' : 'negative';
-    html += `<tr><td>${tx.date || '—'}</td><td>${esc(tx.description || '—')}</td><td class="amount ${cls}">£${tx.amount.toFixed(2)}</td></tr>`;
+    html += `<tr><td>${esc(tx.date || '—')}</td><td>${esc(tx.description || '—')}</td><td class="amount ${cls}">£${tx.amount.toFixed(2)}</td></tr>`;
   }
   html += '</tbody></table>';
   if (keys.filter(k => k.startsWith('tx-')).length > 50) {

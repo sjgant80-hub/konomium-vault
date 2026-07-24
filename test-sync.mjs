@@ -134,3 +134,13 @@ test('bidirectional sync — both sides gain what the other has', async () => {
   assert.deepEqual(await vaultA.get('b-only'), { src: 'B' });
   assert.deepEqual(await vaultB.get('a-only'), { src: 'A' });
 });
+
+test('message-type guards reject a wrong message kind', async () => {
+  const vault = await new Vault().open(SEED);
+  const handshake = generateHandshake();
+  const session = await createSyncSession(handshake, vault);
+  const recordMsg = await sessionEncrypt(await deriveSessionKey(handshake.secret, handshake.salt), { type: 'record', key: 'x', value: 1 });
+  await assert.rejects(() => session.handleManifestMessage(recordMsg), /expected manifest/);
+  const manifestMsg = await sessionEncrypt(await deriveSessionKey(handshake.secret, handshake.salt), { type: 'manifest', keys: [] });
+  await assert.rejects(() => session.handleRecordMessage(manifestMsg), /expected record/);
+});

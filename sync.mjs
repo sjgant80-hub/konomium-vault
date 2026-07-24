@@ -1,22 +1,30 @@
 // konomium-vault · sync.mjs — peer-to-peer vault sync (d=2, the pairing)
 // Two vaults handshake via WebRTC DataChannel. The handshake key is exchanged
 // out-of-band (QR code, local network, paste). No server, no cloud, no TURN.
-// The sync is encrypted end-to-end — both sides derive a shared session key
-// from the handshake secret, so the DataChannel payload is double-encrypted
-// (WebRTC DTLS + our AES-GCM layer).
+// Both sides derive a shared session key from the handshake secret and encrypt
+// every message under it, so nothing readable ever crosses the wire (and the
+// WebRTC DTLS transport adds a second, independent layer on top).
+//
+// What the wire carries — stated precisely: a record is read from the sender's
+// vault (decrypted to plaintext in the sender's RAM), then re-encrypted under
+// the SESSION key for transmission. So the payload on the wire is one AES-GCM
+// session layer over the data — never the raw plaintext, and never the sender's
+// own vault ciphertext (the two vaults hold different keys). The receiver
+// re-encrypts it under ITS vault key via vault.put().
 //
 // Sync protocol:
 //   1. Initiator generates a random handshake secret, shows it as QR/text.
 //   2. Responder scans/pastes the secret.
 //   3. Both derive a session key from the secret via PBKDF2.
-//   4. They exchange encrypted manifests (list of record IDs + hashes).
+//   4. They exchange session-encrypted manifests (lists of record IDs).
 //   5. Each side requests records the other has that it doesn't.
-//   6. Records arrive still vault-encrypted — sync never sees plaintext.
+//   6. Records travel session-encrypted; plaintext never crosses the channel.
 //
 // This module provides the crypto + protocol layer. The WebRTC transport
 // and QR display are in sync-transport.mjs (browser) or injected for testing.
 
 const subtle = globalThis.crypto?.subtle;
+if (!subtle) throw new Error('konomium-vault/sync: Web Crypto (crypto.subtle) unavailable — needs a browser or Node >= 20');
 const ENC = new TextEncoder();
 const DEC = new TextDecoder();
 

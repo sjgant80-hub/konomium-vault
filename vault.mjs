@@ -5,8 +5,10 @@
 // the user holds the key (a master seed). Nothing leaves the machine unless the user exports it.
 //
 // Honest scope — what this IS, so no one relies on what it isn't:
-//   • Real AES-GCM 256 confidentiality + integrity at rest (a stolen disk / browser-file scan
-//     reveals ciphertext, not the ledger). Authenticated: tampering is detected on decrypt.
+//   • Real AES-GCM 256 confidentiality + integrity at rest: every record VALUE is ciphertext (a
+//     stolen disk / browser-file scan reveals encrypted amounts and descriptions, not the figures).
+//     Record KEYS/ids are stored in cleartext (so keep them non-sensitive, e.g. "tx-<batch>-00001").
+//     Authenticated: tampering with a value is detected on decrypt.
 //   • Local, user-initiated erasure (`erase`, `purge`) — the data-subject deletion primitive done
 //     the honest way: the OWNER deletes their OWN data on their OWN device. There is deliberately
 //     NO remote endpoint that lets an outside party trigger a wipe.
@@ -26,7 +28,8 @@ const ENCoder = new TextEncoder();
 const DECoder = new TextDecoder();
 
 export const VAULT_FORMAT = 'konomium-vault-v1';
-export const KDF_ITERATIONS = 250_000;      // PBKDF2-SHA256 rounds (raise over time, stored per-vault)
+export const KDF_ITERATIONS = 600_000;      // PBKDF2-SHA256 rounds — OWASP 2023 floor. Stored per-vault
+                                            // in meta, so older exports still open at their own count.
 const KEY_ALGO = { name: 'AES-GCM', length: 256 };
 const IV_BYTES = 12;                         // 96-bit nonce, fresh per record (never reused with a key)
 const SALT_BYTES = 16;

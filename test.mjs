@@ -100,6 +100,16 @@ test('a too-short seed is refused', async () => {
   await assert.rejects(() => new Vault().open('short'), /at least 8/);
 });
 
+test('put() refuses the reserved meta key', async () => {
+  const v = await new Vault().open(SEED);
+  await assert.rejects(() => v.put('__vault_meta__', { evil: true }), /reserved key/);
+});
+
+test('a new vault mints the OWASP-2023 KDF iteration count (600k)', async () => {
+  const { KDF_ITERATIONS } = await import('./vault.mjs');
+  assert.ok(KDF_ITERATIONS >= 600_000, 'KDF iterations meet the OWASP 2023 floor');
+});
+
 // tiny base64<->bytes helpers for the tamper test (mirror the module's portable pair)
 function atobBytes(s) { const bin = (typeof atob === 'function' ? atob(s) : Buffer.from(s, 'base64').toString('binary')); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; }
 function btoaBytes(u) { if (typeof btoa === 'function') { let s = ''; for (const b of u) s += String.fromCharCode(b); return btoa(s); } return Buffer.from(u).toString('base64'); }
