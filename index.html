@@ -60,6 +60,14 @@ footer{margin-top:2rem;font-size:.7rem;color:var(--dim);text-align:center;paddin
 
   <!-- DASHBOARD (hidden until unlocked) -->
   <div id="dashboard" class="hidden">
+    <div id="persist-warning" class="card hidden" style="border-color:var(--gold)">
+      <h3 style="color:var(--gold)">⚠ Persistence unavailable</h3>
+      <p style="font-size:.85rem">
+        This browser has no IndexedDB (private mode, or an unsupported context), so your vault lives
+        in memory only and <strong>will be lost when you close or refresh this tab.</strong>
+        Use <strong>Export Backup</strong> before you leave, and re-import it next time.
+      </p>
+    </div>
     <div class="card">
       <h3>Vault <span class="badge open" id="vault-badge">open</span></h3>
       <div id="vault-summary"></div>
@@ -119,18 +127,32 @@ footer{margin-top:2rem;font-size:.7rem;color:var(--dim);text-align:center;paddin
 <script type="module">
 import { KonomiumNode, memoryAdapter } from './node.mjs';
 import { ingest } from './ingest.mjs';
+import { idbAvailable, openIdbAdapter } from './idb-adapter.mjs';
 
 let node = null;
+let persistent = false;
 
 window.unlock = async function() {
   const seed = document.getElementById('seed-input').value;
   const status = document.getElementById('unlock-status');
   try {
-    node = await new KonomiumNode().open(seed);
+    // Use a real persistent IndexedDB store so the vault survives reloads. Only fall back to the
+    // in-memory adapter if IndexedDB genuinely isn't available — and when we do, say so loudly,
+    // because in that mode the data is gone on refresh and the user must rely on Export.
+    let adapter = null;
+    persistent = idbAvailable();
+    if (persistent) {
+      try { adapter = await openIdbAdapter('konomium-vault'); }
+      catch (e) { persistent = false; }
+    }
+    node = await new KonomiumNode(adapter ? { adapter } : {}).open(seed);
     status.className = 'status ok';
-    status.textContent = 'Vault unlocked.';
+    status.textContent = persistent
+      ? 'Vault unlocked — data is saved on this device.'
+      : 'Vault unlocked.';
     document.getElementById('unlock-view').classList.add('hidden');
     document.getElementById('dashboard').classList.remove('hidden');
+    document.getElementById('persist-warning').classList.toggle('hidden', persistent);
     refreshSummary();
     loadTransactions();
   } catch(e) {
