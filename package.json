@@ -4,7 +4,7 @@
   "type": "module",
   "main": "vault.mjs",
   "scripts": {
-    "test": "node --test test.mjs test-ingest.mjs test-sync.mjs"
+    "test": "node --test test.mjs test-ingest.mjs test-sync.mjs test-mtd.mjs"
   },
   "license": "MIT"
 }
