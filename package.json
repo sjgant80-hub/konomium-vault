@@ -1,0 +1,10 @@
+{
+  "name": "konomium-vault",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "vault.mjs",
+  "scripts": {
+    "test": "node --test test.mjs"
+  },
+  "license": "MIT"
+}
