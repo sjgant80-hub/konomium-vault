@@ -1,0 +1,27 @@
+[
+  {
+    "mutation": ">= → >",
+    "snippet": "// Web Crypto only (browser + Node >= 20). Storage-agnostic: the crypto core is decoupled ",
+    "reason": "comment FP: the >= is inside a // comment (\"Node >= 20\"), not executable code"
+  },
+  {
+    "mutation": ">= → >",
+    "snippet": "if (!subtle) throw new Error('konomium-vault: Web Crypto (crypto.subtle) unavailable — nee",
+    "reason": "string FP: the >= is inside the string literal in throw new Error('...Node >= 20')"
+  },
+  {
+    "mutation": "< → <=",
+    "snippet": "if (typeof atob === 'function') { const bin = atob(str); const u8 = new Uint8Array(bin.len",
+    "reason": "equivalent: extra loop iteration writes u8[bin.length]=charCodeAt(bin.length)=NaN to an out-of-bounds Uint8Array index, which is a silent no-op; the array is unchanged"
+  },
+  {
+    "mutation": "=== → !==",
+    "snippet": "if (typeof btoa === 'function') { let s = ''; for (const b of u8) s += String.fromCharCode",
+    "reason": "equivalent: flipping the btoa feature-detect routes to the Buffer.from(u8).toString('base64') branch, which produces byte-identical base64"
+  },
+  {
+    "mutation": "=== → !==",
+    "snippet": "if (typeof atob === 'function') { const bin = atob(str); const u8 = new Uint8Array(bin.len",
+    "reason": "equivalent: flipping the atob feature-detect routes to the new Uint8Array(Buffer.from(str,'base64')) branch, which produces byte-identical bytes"
+  }
+]
