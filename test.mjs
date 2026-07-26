@@ -110,6 +110,38 @@ test('a new vault mints the OWASP-2023 KDF iteration count (600k)', async () => 
   assert.ok(KDF_ITERATIONS >= 600_000, 'KDF iterations meet the OWASP 2023 floor');
 });
 
+test('a seed of exactly the minimum length (8) is accepted — the boundary is inclusive', async () => {
+  // pins masterSeed.length < 8 (an 8-char seed must open); a `<= 8` off-by-one would reject it
+  const eight = 'abcdefgh';
+  assert.equal(eight.length, 8);
+  const v = await new Vault().open(eight);
+  await v.put('inv1', INVOICE);
+  assert.deepEqual(await v.get('inv1'), INVOICE);
+});
+
+test('reopen honours the vault-stored KDF iteration count, not the constructor default', async () => {
+  // pins `meta.iterations || this.iterations`: a vault minted at 50k must reopen from its OWN
+  // stored count even when a later Vault() defaults to 600k. A `&&` would derive with the wrong
+  // iteration count and reject the correct seed.
+  const adapter = memoryAdapter();
+  await (await new Vault({ adapter, iterations: 50_000 }).open(SEED)).put('inv1', INVOICE);
+  const reopened = await new Vault({ adapter }).open(SEED); // constructor default is 600k
+  assert.deepEqual(await reopened.get('inv1'), INVOICE);
+});
+
+test('import rejects a null blob with the export error (not a TypeError)', async () => {
+  // pins the first `||` in the guard: `!blob` must short-circuit before touching blob.format
+  await assert.rejects(() => Vault.import(null, SEED, { adapter: memoryAdapter() }), /not a konomium-vault export/);
+});
+
+test('import rejects an export missing its meta block', async () => {
+  // pins the second `||` in the guard: a right-format blob with no meta must still be refused
+  await assert.rejects(
+    () => Vault.import({ format: VAULT_FORMAT, records: {} }, SEED, { adapter: memoryAdapter() }),
+    /not a konomium-vault export/,
+  );
+});
+
 // tiny base64<->bytes helpers for the tamper test (mirror the module's portable pair)
 function atobBytes(s) { const bin = (typeof atob === 'function' ? atob(s) : Buffer.from(s, 'base64').toString('binary')); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; }
 function btoaBytes(u) { if (typeof btoa === 'function') { let s = ''; for (const b of u) s += String.fromCharCode(b); return btoa(s); } return Buffer.from(u).toString('base64'); }
