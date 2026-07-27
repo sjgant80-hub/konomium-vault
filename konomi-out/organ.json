@@ -1,0 +1,18 @@
+{
+  "id": "konomium-vault",
+  "ring": "R5-observation",
+  "mesh": "niceassos-mesh",
+  "konomified": null,
+  "proof": {
+    "benchmark": "assessor-v0.7",
+    "core": "10/10",
+    "hash": "22a6ed02d60324bac0326b6db8e57a1e"
+  },
+  "behaviour": {
+    "gate": "witness",
+    "clean": true,
+    "score": 0.786,
+    "source": "vault.mjs",
+    "skipped": false
+  }
+}
