@@ -180,3 +180,49 @@ test('prepareSubmission with injected transport calls it', async () => {
   assert.ok(called);
   assert.equal(response.correlationId, 'test-123');
 });
+
+
+// ─── the boundaries the mutation gate proved nothing was holding (estate bring-up) ───
+
+test('A ZERO-AMOUNT TRANSACTION IS NOT A SALE — the > 0 boundary is exact', () => {
+  // `>` flipped to `>=` books every £0.00 line (card auth checks, voided payments) as a
+  // standard-rate OUTPUT — VAT invented out of nothing.
+  const c = classifyTransaction({ amount: 0, description: 'card auth check' });
+  assert.equal(c.type, 'input', 'a zero-amount transaction was classified as a sale');
+});
+
+test('and a zero-amount transaction gets NO reclaim suggestion — strictly null', () => {
+  // 'office' matches the reclaimable hint; only the `!(amount < 0)` guard keeps a £0.00 line from
+  // being suggested as a reclaimable purchase.
+  assert.strictEqual(suggestVatClass({ amount: 0, description: 'office supplies' }), null);
+});
+
+test('A DEAD-EVEN RETURN READS "owe", NOT "reclaim" — the tie goes to HMRC', () => {
+  // box3 === box4 → nothing due either way. `>= 0` flipped to `> 0` labels a £0.00 balance
+  // "reclaim", which on a real submission is a claim for money that is not owed.
+  const r = computeVATReturn([], PERIOD);
+  assert.equal(r.boxes.box5, 0);
+  assert.equal(r.direction, 'owe', 'a zero balance was labelled a reclaim');
+});
+
+test('NO PERIOD MEANS EVERYTHING COUNTS — the no-filter default is include, not exclude', () => {
+  // `return true` flipped to `return false` makes an unbounded return silently EMPTY: every box
+  // zero, nothing flagged, a perfect-looking nil return built from ignoring the ledger.
+  const r = computeVATReturn([{ date: '2026-01-15', amount: 1200, description: 'sale' }]);
+  assert.equal(r.lineCount, 1, 'an unbounded return excluded everything');
+  assert.ok(r.boxes.box6 > 0, 'the sale never reached box6');
+});
+
+test('THE PERIOD END DATE IS INCLUSIVE — a sale ON the last day belongs to the quarter', () => {
+  const r = computeVATReturn([{ date: PERIOD.to, amount: 1200, description: 'sale' }], PERIOD);
+  assert.equal(r.lineCount, 1, 'the last day of the quarter was excluded from its own return');
+});
+
+test('A MALFORMED DATE INSIDE THE LEXICAL RANGE IS STILL EXCLUDED', () => {
+  // '2026-1-15' is not ISO but string-compares between '2026-01-01' and '2026-12-31' — the regex
+  // is the ONLY thing keeping it out. `||` flipped to `&&` short-circuits past the regex for every
+  // non-empty string, so sloppy dates silently land in whichever period they lexically fall into.
+  const year = { from: '2026-01-01', to: '2026-12-31', key: '26FY' };
+  const r = computeVATReturn([{ date: '2026-1-15', amount: 1200, description: 'sale' }], year);
+  assert.equal(r.lineCount, 0, 'a malformed date was placed in a period by string luck');
+});

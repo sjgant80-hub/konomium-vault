@@ -205,3 +205,130 @@ test('ingestToVault data is encrypted at rest', async () => {
   assert.ok(!stored.includes('Tesco'));
   assert.ok(!stored.includes('45.67'));
 });
+
+
+// ─── the boundaries the mutation gate proved nothing was holding (estate bring-up) ───
+
+test('THE DATE WINDOW IS INCLUSIVE AT ALL SIX EDGES — 1900-01-01 and 2200-12-31 are real dates', () => {
+  // y>=1900, y<=2200, m>=1, m<=12, d>=1, d<=31: each flipped boundary silently voids a real date —
+  // every 1st of January, every 31st, the whole first and last supported year.
+  assert.equal(normaliseDate('1900-01-01'), '1900-01-01');
+  assert.equal(normaliseDate('2200-12-31'), '2200-12-31');
+  assert.equal(normaliseDate('1899-06-15'), null);
+  assert.equal(normaliseDate('2201-06-15'), null);
+});
+
+test('THE TWO-DIGIT PIVOT IS 69/70 — the standard UNIX pivot, exactly', () => {
+  assert.equal(normaliseDate('15/03/69'), '2069-03-15', 'yy=69 must pivot forward');
+  assert.equal(normaliseDate('15/03/70'), '1970-03-15', 'yy=70 must pivot back');
+});
+
+test('SCIENTIFIC NOTATION IS NOT A BANK AMOUNT — the regex is the guard, not Number()', () => {
+  // `cleaned === '' || !regex` flipped to && short-circuits past the regex for any non-empty
+  // string, and Number('1e5') is a perfectly finite 100000 — an amount invented from a typo.
+  assert.strictEqual(parseAmount('1e5'), null, 'scientific notation was accepted as money');
+  assert.strictEqual(parseAmount('0x10'), null, 'hex was accepted as money');
+});
+
+test('A FORMAT NEEDS *BOTH* ITS SIGNATURE COLUMNS — one alone is not a detection', () => {
+  // Each detect() is an AND of two signatures. Flipped to OR, a generic CSV that merely mentions
+  // "Counter Party" gets Starling column mappings applied to columns that do not exist.
+  assert.strictEqual(detectFormat(['Date', 'Counter Party', 'Amount']), null,
+    'Counter Party without Amount (GBP) must not read as Starling');
+  assert.strictEqual(detectFormat(['Transaction Date', 'Amount']), null,
+    'Transaction Date without Transaction Description must not read as HSBC');
+  assert.equal(detectFormat(['Date', 'Memo', 'Amount']).name, 'barclays',
+    'Memo + Amount is a real Barclays signature — the OR arm must stay an OR');
+});
+
+test('MONZO FIELDS LAND EXACTLY — every || fallback keeps the primary when it is present', () => {
+  // date/description/category/currency/reference each read `primary || fallback`. Flipped to &&,
+  // a populated primary hands back the FALLBACK: descriptions become the counterparty short-name,
+  // EUR becomes GBP, references vanish.
+  const csv = 'Transaction ID,Date,Amount,Description,Category,Currency,Name\n' +
+    'tx_1,01/02/2026,-4.50,COSTA COFFEE,Eating out,EUR,Costa';
+  const r = ingest(csv);
+  assert.equal(r.format, 'monzo');
+  const tx = r.transactions[0];
+  assert.equal(tx.date, '2026-02-01', 'the Date column was ignored for a missing Created');
+  assert.equal(tx.description, 'COSTA COFFEE');
+  assert.equal(tx.category, 'Eating out');
+  assert.equal(tx.currency, 'EUR', 'a real currency was overwritten with the GBP default');
+  assert.equal(tx.reference, 'tx_1');
+});
+
+test('STARLING FIELDS LAND EXACTLY — counterparty, category and reference survive their fallbacks', () => {
+  const csv = 'Date,Counter Party,Amount (GBP),Spending Category,Reference\n' +
+    '01/02/2026,ACME LTD,-12.50,Travel,REF9';
+  const r = ingest(csv);
+  assert.equal(r.format, 'starling');
+  const tx = r.transactions[0];
+  assert.equal(tx.description, 'ACME LTD', 'the counterparty fell through to the reference');
+  assert.equal(tx.category, 'Travel');
+  assert.equal(tx.reference, 'REF9');
+});
+
+test('BARCLAYS DESCRIPTION CHAIN — a filled Memo wins, an empty Memo falls to Subcategory', () => {
+  const csv = 'Date,Memo,Amount,Subcategory\n' +
+    '01/02/2026,TESCO STORES,-20.00,Food\n' +
+    '02/02/2026,,-5.00,Snacks';
+  const r = ingest(csv);
+  assert.equal(r.format, 'barclays');
+  assert.equal(r.transactions[0].description, 'TESCO STORES', 'a filled Memo was skipped');
+  assert.equal(r.transactions[0].category, 'Food');
+  assert.equal(r.transactions[1].description, 'Snacks', 'an empty Memo did not fall through');
+});
+
+test('MONEY IN/OUT SPLIT NEEDS BOTH COLUMNS — Money in alone must not be trusted as the amount', () => {
+  // `'Money in' in row && 'Money out' in row` flipped to || reads a lone Money-in column as the
+  // signed amount with no outflow column to balance it. The contract: both columns or use Amount —
+  // and with no Amount column either, the row is an ERROR, never a silent guess.
+  const csv = 'Date,Memo,Money in\n01/02/2026,coffee,50';
+  const r = ingest(csv);
+  assert.equal(r.format, 'barclays');
+  assert.equal(r.transactions.length, 0);
+  assert.equal(r.errors.length, 1, 'a half-split row was silently given an amount');
+});
+
+test('GENERIC AMOUNT PICKING NEVER SEATS A DATE COLUMN — and the last-resort arm is exact', () => {
+  // 'Value Date' matches /value/ but is a date; only `&& !/date/` keeps it out of the amount seat.
+  const r1 = ingest('Value Date,Paid Out,Details\n01/02/2026,12.50,card payment');
+  assert.equal(r1.format, 'generic');
+  assert.equal(r1.transactions[0].amount, 12.5, 'the amount was read from the date column');
+
+  // Last-resort arm: every amount-ish header also says date, except one — and the non-amount
+  // column ahead of it must not be seated by a flipped && either.
+  const r2 = ingest('Date,Notes,Sum date\n01/02/2026,coffee shop,42.00');
+  assert.equal(r2.transactions[0].amount, 42, 'the h !== dateKey arm picked the wrong column');
+  assert.equal(r2.transactions[0].description, 'coffee shop');
+});
+
+test('THE DESC SEAT REFUSES THE DATE AND AMOUNT COLUMNS EVEN WHEN THEY MATCH ITS OWN REGEX', () => {
+  // 'Reference Date' matches /reference/ AND is the date column; 'Reference Value' matches AND is
+  // the amount column. Only the !== guards keep the description from becoming a date or a number.
+  const r1 = ingest('Reference Date,Amount,Payee Name\n01/02/2026,-9.99,ACME LTD');
+  assert.equal(r1.transactions[0].description, 'ACME LTD', 'the desc seat took the date column');
+
+  const r2 = ingest('Date,Reference Value,Payee Name\n01/02/2026,-9.99,ACME LTD');
+  assert.equal(r2.transactions[0].amount, -9.99);
+  assert.equal(r2.transactions[0].description, 'ACME LTD', 'the desc seat took the amount column');
+
+  // and a non-matching column ahead of the real one must not be seated by a flipped &&
+  const r3 = ingest('Date,Amount,Category,Payee Name\n01/02/2026,-9.99,Groceries,ACME LTD');
+  assert.equal(r3.transactions[0].description, 'ACME LTD', 'a non-desc column was seated');
+});
+
+test('THE FALLBACK DESCRIPTION SKIPS DATE, AMOUNT, EMPTIES AND TWO-CHAR CODES', () => {
+  // No desc-regex header at all → fallback walks the row values. It must skip the date value, the
+  // amount value, empty strings, and anything ≤2 chars — each skip is one mutant.
+  const r = ingest('Date,Amount,Void,Code,Info\n01/02/2026,-9.99,,ab,coffee shop');
+  assert.equal(r.transactions[0].description, 'coffee shop',
+    'the fallback description picked a date, an amount, an empty cell or a 2-char code');
+});
+
+test('A ROW CARRIES EXACTLY ITS HEADERS — no phantom keys from a loop overrun', () => {
+  // `j < headers.length` flipped to <= writes row[undefined] = '' into every row. The tx keeps the
+  // raw row verbatim, so the phantom key is visible — and would be stored in the vault forever.
+  const r = ingest('Date,Amount,Info\n01/02/2026,-9.99,coffee shop');
+  assert.deepEqual(r.transactions[0].raw, { Date: '01/02/2026', Amount: '-9.99', Info: 'coffee shop' });
+});

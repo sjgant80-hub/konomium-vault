@@ -23,5 +23,50 @@
     "mutation": "=== → !==",
     "snippet": "if (typeof atob === 'function') { const bin = atob(str); const u8 = new Uint8Array(bin.len",
     "reason": "equivalent: flipping the atob feature-detect routes to the new Uint8Array(Buffer.from(str,'base64')) branch, which produces byte-identical bytes"
+  },
+  {
+    "mutation": ">= → >",
+    "snippet": "if (!subtle) throw new Error('konomium-vault/sync: Web Crypto (crypto.subtle) unavailable ",
+    "reason": "the >= lives inside the error-message STRING of the module-load guard (\"needs Node >= 15 or a browser\") — prose, not a comparison the code executes. The guard itself (!subtle) is killed."
+  },
+  {
+    "mutation": "< → <=",
+    "snippet": "if (typeof atob === 'function') { const bin = atob(s); const u8 = new Uint8Array(bin.lengt",
+    "reason": "typed-array OOB write is silently discarded: <= reads charCodeAt(bin.length) = NaN and writes it to u8[bin.length], one past the end of a fixed-length Uint8Array — the write is dropped by spec and every byte that matters is identical."
+  },
+  {
+    "mutation": "=== → !==",
+    "snippet": "if (typeof atob === 'function') { const bin = atob(s); const u8 = new Uint8Array(bin.lengt",
+    "reason": "environment-shim branch: Node has BOTH atob and Buffer, and the two decode paths return byte-identical Uint8Arrays — flipping which branch runs is unobservable wherever the tests can run. The branch exists for environments that have only one of the two."
+  },
+  {
+    "mutation": "> → >=",
+    "snippet": "income: txs.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0),",
+    "reason": "equivalent by arithmetic: > flipped to >= admits amount === 0 into the income filter, and reduce then adds exactly 0 to the sum — the reported number cannot move. Zero-amount rows reach txs (they parse fine), but a sum is the only consumer of this filter."
+  },
+  {
+    "mutation": "< → <=",
+    "snippet": "expense: txs.filter(t => t.amount < 0).reduce((s, t) => s + t.amount, 0),",
+    "reason": "equivalent by arithmetic, twin of the income filter: < flipped to <= admits 0 (and -0) into the expense filter and adds exactly 0 to the sum."
+  },
+  {
+    "mutation": "!== → ===",
+    "snippet": "if (started || field !== '' || record.length) { record.push(field); records.push(record); ",
+    "reason": "unreachable divergence: parseRecords is module-private and its only caller (parseCSV) filters all-empty records, so the phantom [\"\"] this flip can produce is discarded; the other divergent states need field non-empty with started false, which the state machine cannot reach (every character append sets started). Kept because the flush must stay correct if a second caller ever appears."
+  },
+  {
+    "mutation": "|| → &&",
+    "snippet": "if (s == null || s === '') return null;",
+    "reason": "shadowed fast-path: every input this guard catches (null, undefined, empty string) is caught identically below — String(null)/String(undefined) fail the amount regex at line 99, and the empty string returns null at line 86. The fast path is kept for clarity; its removal or flip is unobservable."
+  },
+  {
+    "mutation": "|| → &&",
+    "snippet": "if (started || field !== '' || record.length) { record.push(field); records.push(record); ",
+    "reason": "unreachable divergence: parseRecords is module-private and its only caller (parseCSV) filters all-empty records, so the phantom [\"\"] this flip can produce is discarded; the other divergent states need field non-empty with started false, which the state machine cannot reach (every character append sets started). Kept because the flush must stay correct if a second caller ever appears."
+  },
+  {
+    "mutation": "|| → &&",
+    "snippet": "if (started || field !== '' || record.length) { record.push(field); records.push(record); ",
+    "reason": "unreachable divergence: parseRecords is module-private and its only caller (parseCSV) filters all-empty records, so the phantom [\"\"] this flip can produce is discarded; the other divergent states need field non-empty with started false, which the state machine cannot reach (every character append sets started). Kept because the flush must stay correct if a second caller ever appears."
   }
 ]

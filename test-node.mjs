@@ -102,3 +102,12 @@ test('erase removes a single record', async () => {
   assert.equal(await node.get('remove'), null);
   assert.deepEqual(await node.get('keep'), { a: 1 });
 });
+
+
+test('THE ADAPTER SEAT IS EXACT — the one given, or strictly null, never undefined', () => {
+  // `opts.adapter || null` flipped to && hands back NULL when an adapter WAS given — the node
+  // silently loses its persistent store and every save quietly goes nowhere.
+  const a = memoryAdapter();
+  assert.strictEqual(new KonomiumNode({ adapter: a }).adapter, a, 'the given adapter was not seated');
+  assert.strictEqual(new KonomiumNode().adapter, null, 'no adapter must read as strictly null');
+});
