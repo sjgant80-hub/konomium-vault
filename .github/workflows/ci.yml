@@ -11,3 +11,34 @@ jobs:
         with:
           node-version: '20'
       - run: npm test
+      # ⚑ Pinned. An unpinned gate is a gate somebody else can change.
+      - name: witness — try to break vault.mjs, then READ the verdict (must be CLEAN)
+        run: |
+          git clone --depth 1 --branch v0.6 https://github.com/sjgant80-hub/witness.git /tmp/witness
+          node /tmp/witness/witness.mjs mutate vault.mjs             --timeout 60000 --cap 500 --baseline witness.baseline.json             --test node --test test.mjs | tee verdict.txt
+          grep -q '"clean": true' verdict.txt || { echo "::error::mutants survived — the gate is not clean"; exit 1; }
+      # ⚑ Pinned. An unpinned gate is a gate somebody else can change.
+      - name: witness — try to break idb-adapter.mjs, then READ the verdict (must be CLEAN)
+        run: |
+          node /tmp/witness/witness.mjs mutate idb-adapter.mjs             --timeout 60000 --cap 500 --baseline witness.baseline.json             --test node --test test-idb.mjs | tee verdict.txt
+          grep -q '"clean": true' verdict.txt || { echo "::error::mutants survived — the gate is not clean"; exit 1; }
+      # ⚑ Pinned. An unpinned gate is a gate somebody else can change.
+      - name: witness — try to break ingest.mjs, then READ the verdict (must be CLEAN)
+        run: |
+          node /tmp/witness/witness.mjs mutate ingest.mjs             --timeout 60000 --cap 500 --baseline witness.baseline.json             --test node --test test-ingest.mjs | tee verdict.txt
+          grep -q '"clean": true' verdict.txt || { echo "::error::mutants survived — the gate is not clean"; exit 1; }
+      # ⚑ Pinned. An unpinned gate is a gate somebody else can change.
+      - name: witness — try to break mtd.mjs, then READ the verdict (must be CLEAN)
+        run: |
+          node /tmp/witness/witness.mjs mutate mtd.mjs             --timeout 60000 --cap 500 --baseline witness.baseline.json             --test node --test test-mtd.mjs | tee verdict.txt
+          grep -q '"clean": true' verdict.txt || { echo "::error::mutants survived — the gate is not clean"; exit 1; }
+      # ⚑ Pinned. An unpinned gate is a gate somebody else can change.
+      - name: witness — try to break node.mjs, then READ the verdict (must be CLEAN)
+        run: |
+          node /tmp/witness/witness.mjs mutate node.mjs             --timeout 60000 --cap 500 --baseline witness.baseline.json             --test node --test test-node.mjs | tee verdict.txt
+          grep -q '"clean": true' verdict.txt || { echo "::error::mutants survived — the gate is not clean"; exit 1; }
+      # ⚑ Pinned. An unpinned gate is a gate somebody else can change.
+      - name: witness — try to break sync.mjs, then READ the verdict (must be CLEAN)
+        run: |
+          node /tmp/witness/witness.mjs mutate sync.mjs             --timeout 60000 --cap 500 --baseline witness.baseline.json             --test node --test test-sync.mjs | tee verdict.txt
+          grep -q '"clean": true' verdict.txt || { echo "::error::mutants survived — the gate is not clean"; exit 1; }

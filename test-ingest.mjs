@@ -332,3 +332,26 @@ test('A ROW CARRIES EXACTLY ITS HEADERS — no phantom keys from a loop overrun'
   const r = ingest('Date,Amount,Info\n01/02/2026,-9.99,coffee shop');
   assert.deepEqual(r.transactions[0].raw, { Date: '01/02/2026', Amount: '-9.99', Info: 'coffee shop' });
 });
+
+// ── 2026-08-27 gate-hardening: three survivors pinned dead ──
+
+test('an amount-error row carries its description VERBATIM, and null only when truly absent', () => {
+  const r = ingest('Date,Amount,Info\n01/02/2026,not-a-number,coffee shop');
+  assert.equal(r.errors.length, 1);
+  assert.equal(r.errors[0].description, 'coffee shop', 'the description rides through, never nulled by the fallback');
+  const bare = ingest('Date,Amount\n01/02/2026,not-a-number');
+  assert.equal(bare.errors[0].description, null, 'absent description reads null exactly, not undefined');
+});
+
+test('a dateless row warns with its description VERBATIM', () => {
+  const r = ingest('Date,Amount,Info\nnot-a-date,-5.00,bus fare');
+  assert.equal(r.warnings.length, 1);
+  assert.equal(r.warnings[0].description, 'bus fare');
+});
+
+test('ingestToVault stores EXACTLY count transactions — never a phantom extra key', async () => {
+  const v = await new Vault().open(SEED);
+  const manifest = await ingestToVault(v, MONZO_CSV, 'exact-count');
+  const txKeys = (await v.keys()).filter((k) => k.startsWith('tx-exact-count-'));
+  assert.equal(txKeys.length, manifest.count, 'one key per transaction, no off-by-one phantom');
+});
