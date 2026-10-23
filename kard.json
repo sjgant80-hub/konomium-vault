@@ -1,0 +1,29 @@
+{
+  "kind": "kard.v1",
+  "name": "konomium-vault",
+  "title": "Konomium",
+  "retires": "an accounting vault with Making Tax Digital submission",
+  "category": "Accounting and tax",
+  "license": "MIT",
+  "live": "https://sjgant80-hub.github.io/konomium-vault/",
+  "repo": "https://github.com/sjgant80-hub/konomium-vault",
+  "studs": {
+    "brain": {
+      "how": "inline",
+      "version": "3.1.0"
+    },
+    "mesh": {
+      "device": true,
+      "peer": false
+    },
+    "memory": {
+      "indexeddb": false,
+      "localstorage": false
+    },
+    "proof": {
+      "workflows": 1,
+      "tests": 1
+    }
+  },
+  "fits": false
+}
